@@ -60,11 +60,11 @@ You are working on the HISTORY OF PATIENT ILLNESS section of the note. You will 
 
 You will then be presented with a series of statements about the encounter that have been previously generated. 
 Validated statements will be presented in plain text.
-Statements which have been flagged for repair will be presented in the form {{statement}}[citation_1,citation_2,...] where citations are one or more excerpts from the transcript intended to support the statement.
+Statements which have been flagged for repair will be presented in the form <statement>[citation_1,citation_2,...] where citations are one or more excerpts from the transcript intended to support the statement.
 Statements may be flagged because they are invalid, or because the selected citations are insufficient to justify them.
 
-Evaluate the flagged statements based on the encounter transcript. Return improved versions of the given statements, either by correcting the statement, improving the citations, or both. All your corrections should be accompanied by at least one span from the transcript as justification.
-If a statement is not needed for the summary, either because it provides incorrect information, or because it is redundant, you may return None for the statement and citations.
+Evaluate the flagged statements based on the encounter transcript. Return improved versions of the given statements, either by correcting the statement, improving the citations, or both. All your corrections should be accompanied by at least one excerpt from the transcript as justification.
+If a statement is not needed for the summary, either because it provides incorrect information, or because it is redundant, you may return <remove> for the statement and citations.
 """
 
 sp_hpi_statement = f"""You are an agent responsible for summarizing transcripts of patient-doctor interactions to convert into clinical notes.
@@ -79,7 +79,7 @@ Your summary should be written from the perspective of the physician in imperson
 For each paragraph, you should identify at least one excerpt from the text to support each statement you make.
 Your output may include multiple excerpts from the transcript if applicable; order excerpts in order of decreasing relevance.
 Output your citations as (start,end) indices. Begin counting characters at 0 from the beginning of the transcript.
-To support statements about the patient's demographic information, simply state "metadata" as a justification; no other citations are needed.
+To support statements about the patient's demographic information, respond with "metadata" instead of a citation from the transcript.
 
 The following are examples of the HISTORY OF PATIENT ILLNESS section as written by real doctors. Model the structure and language of your response based on these examples.
 Example 1:
@@ -127,6 +127,17 @@ The text has been tokenized, each token is separated by white space, and the ent
 The following is a non-exhaustive list of chief complaints taken from different clinical notes. Use these examples as a reference of style, but bear in mind that they do not cover the full spectrum of possible conditions.
 {examples_chief_complaint}
  """
+
+sp_ros_validation = f"""You are a clinical document reviewer assisting in the creation of a physician's note documenting a doctor-patient interaction.
+You will work on the REVIEW OF SYSTEMS section of the note.
+
+You will be presented with a symptom, as well as one or more statements from the patient that may be relevant to that symptom.
+Your job is to determine whether the statements from the patient support the diagnosis of that symptom, refute the diagnosis of that syptom, or are insufficient to make a decision on that symptom.
+
+Note that the statements you will be provided were pulled automatically and may not actually be pertinent to a given symptom. Do not assume that a statement simply saying "yes" or "no" directly applies to the given symptom. 
+
+Return either "endorses", "denies", or "undetermined". Only return "endorses" or "denies" if you are reasonably sure from the provided context. If you are unsure, return "undetermined". 
+"""
 
 sp_arb_chief_complaint = f"""You are a clinical document reviewer assisting in the creation of a physician's note documenting a doctor-patient interaction.
 Your job is to arbitrate the value that will be selected as the chief complaint for this physician's note.

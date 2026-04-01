@@ -10,14 +10,20 @@ from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from dotenv import load_dotenv
 
+import config
 from process_corpus import *
 from system_prompts import *
 
 load_dotenv()
 
-sim_threshold = 0.6
+sim_threshold = config.similarity_threshold
+
 verbose = True
 logger = print if verbose else lambda *a, **k: None
+debug_state = 1
+
+coverage_iter = 0
+repair_iter = 0
 
 llm = init_chat_model(
     model="gpt-5-nano",
@@ -26,8 +32,7 @@ llm = init_chat_model(
 
 class HPICitationSchema(BaseModel):
     statement: str
-    #justification: List[str]
-    source_spans: List[str] = None
+    justifications: List[str] = Field(min_length=1)
 
 class ValidationStatus(BaseModel):
     statement_id: int
@@ -85,6 +90,10 @@ statement_prompt = ChatPromptTemplate.from_messages([
 repair_prompt = ChatPromptTemplate.from_messages([
     ("system", sp_hpi_repair),
     ("user", "{transcript}"),
+    ("user", "{patient_forename}"),
+    ("user", "{patient_surname}"),
+    ("user", "{patient_age}"),
+    ("user", "{patient_gender}"),
     ("user","{curr_summary}")
 ])
 
@@ -99,6 +108,9 @@ def debug_invoke(agent, payload, name):
     return result
 
 def build_clusters(state: State) -> State:
+    if debug_state == 1:
+        return state
+
     text = state.source_transcript
 
     result = debug_invoke(cluster_agent,{
@@ -110,6 +122,9 @@ def build_clusters(state: State) -> State:
     })
 
 def embed_clusters(state: State) -> State:
+    if debug_state == 1:
+        return state
+
     summ_embeddings = []
     for cluster in state.info_clusters:
         summ_embeddings.append(embeddings_model.embed_query(cluster.summary))
@@ -133,7 +148,7 @@ def embed_statements(state: State) -> State:
     embeddings = []
     for citation in state.statements:
         statement = citation.statement
-        justifications = citation.source_spans
+        justifications = citation.justifications
         if "metadata" in justifications:
             embeddings.append("metadata") # don't bother generating embeddings for demographics info, won't validate properly anyway
         else:
@@ -147,8 +162,8 @@ def format_repair(state: State) -> State:
     invalid_ids = [x.statement_id for x in state.validations if x.status == "invalid"]
     for i,statement in enumerate(state.statements):
         if i in invalid_ids:
-            output_summ += f"{{{statement.statement}}}["
-            for just in statement.source_spans:
+            output_summ += f"<{statement.statement}>["
+            for just in statement.justifications:
                 output_summ += f"{just},"
             output_summ = output_summ[:-1] # remove final comma
             output_summ += "]\n\n"
@@ -160,6 +175,9 @@ def format_repair(state: State) -> State:
 
 
 def validate_coverage(state: State) -> State:
+    if debug_state == 1:
+        return state
+
     cluster_covered = []
     for i,summ_embedding in enumerate(state.cluster_summ_embeddings):
         logger(f"Validating coverage: {state.info_clusters[i].summary}",end=" ")
@@ -167,7 +185,7 @@ def validate_coverage(state: State) -> State:
         for statement_embedding in state.statement_embeddings:
             if statement_embedding == "metadata":
                 continue
-            sim = cosine(summ_embedding,statement_embedding)
+            sim = 1 - cosine(summ_embedding,statement_embedding)
             logger(sim,end=" ")
             if sim > sim_threshold:
                 covered = True
@@ -178,9 +196,12 @@ def validate_coverage(state: State) -> State:
 
 def validate_justification(state: State) -> State:
     statement_justified = []
+
     for i in range(len(state.statement_embeddings)):
         statement_txt = state.statements[i].statement
         logger(f"Validating statement: {statement_txt}")
+
+        justifications = [x for x in state.statements[i].justifications if len(x)>20]
 
         statement_e = state.statement_embeddings[i]
         if statement_e == "metadata":
@@ -188,7 +209,7 @@ def validate_justification(state: State) -> State:
             logger("Validated (metadata)")
             continue
 
-        just_e = [embeddings_model.embed_query(justification) for justification in state.statements[i].source_spans]
+        just_e = [embeddings_model.embed_query(justification) for justification in state.statements[i].justifications]
 
         curr_best = 0
         for j_e in just_e:
@@ -207,15 +228,20 @@ def validate_justification(state: State) -> State:
 
         validation = ValidationStatus(**{"statement_id":i,
             "status":status,
-            "errors":["Insufficient semantic match"] if v else []
+            "errors":["Insufficient semantic match"] if not v else []
         })
+        validations.append(validation)
 
-    return state.model_copy(update={"validation_status": validations})
+    logger(validations)
+    return state.model_copy(update={"validations": validations})
 
 def repair_coverage(state: State) -> State:
+    if debug_state == 1:
+        return state
+
     message = ""
     for section in state.statements:
-        message += section.statement + " " + section.source_spans
+        message += section.statement + " " + section.justifications
 
     message += """The following conditions of the patient were found to have insufficient coverage in the summary as written. Please revise your summary to include or expand the coverage of these conditions. Please return a revised version of the full summary.\n"""
 
@@ -229,7 +255,7 @@ def repair_coverage(state: State) -> State:
     pass
 
 def repair_statements(state: State) -> State:
-    curr_summ = format_repair()
+    curr_summ = format_repair(state)
     logger("Repairing: ")
     logger(curr_summ)
 
@@ -242,6 +268,23 @@ def repair_statements(state: State) -> State:
                            "curr_summary":curr_summ},
                         "repair_agent"
     )
+
+    pointer = 0
+
+    new_statements = []
+    for validation in state.validations:
+        id = validation.statement_id
+        if validation.status == "valid":
+            new_statements.append(state.statements[id])
+        elif validation.status == "invalid":
+            if result.statements[pointer].statement != "<remove>":
+                new_statements.append(result.statements[pointer])
+            pointer += 1
+
+    return state.model_copy(update={"statements":new_statements,"validations":[],"iteration":state.iteration+1})
+
+
+
 
 def coverage_logic(state: State) -> State:
     if False in state.cluster_coverage:
@@ -296,8 +339,11 @@ builder.add_conditional_edges("validate_statements",
         "end": END
     }
 )
+builder.add_edge("repair_statements","embed_statements")
 
 hpi_graph = builder.compile()
+
+print(hpi_graph.get_graph().draw_ascii())
 
 def generate_hpi(transcript,metadata):
     logger(metadata)
