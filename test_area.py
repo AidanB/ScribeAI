@@ -7,29 +7,35 @@ from note_class import *
 from utils import *
 
 if __name__ == '__main__':
-    version = "v1"
+    version = "v2"
 
     fm = FileManager(config.target_path)
 
     corpus = Corpus.load("ms_cnvsc_acibench_test_mini.corpus")
 
+    """
     # Single doc iteration
-    i = 0
-    curr_doc = corpus.docs[0]
+    i = 3
+    curr_doc = corpus.docs[i]
     existing_note_data = fm.load_note_data(version, i)
     curr_note = Note.load_from_dict(existing_note_data, version=version, doc_num=i, doc=curr_doc, verbose=True, force_update=True)
 
-    output_note = curr_note.generate_note()
+    #curr_note.get_ros()
+    #print(curr_note.format_note())
+    curr_note.get_hpi()
     fm.save_note_data(version,i,curr_note)
-    fm.output_note(version,i,output_note)
-
-
+    #output_note = curr_note.generate_note()
+    #fm.save_note_data(version,i,curr_note)
+    #fm.output_note(version,i,output_note)
     """
-    # Full iteration
+
+    # Full iteration, force update
     for i,doc in enumerate(corpus.docs):
-        existing_note_data = fm.load_note_data(version,i)
-        curr_note = Note.load_from_dict(existing_note_data,version=version,doc_num=i,doc=doc,verbose=True) #if existing_note_data else Note(version,i,doc,verbose=True)
+        if i<4:
+            continue
 
-        curr_note.get_chief_complaint()
+        curr_note = Note(version=version,doc_num=i,doc=doc,verbose=True,force_update=True)
+
+        output_note = curr_note.generate_note()
         fm.save_note_data(version,i,curr_note)
-    """
+        fm.output_note(version,i,output_note)
