@@ -47,6 +47,11 @@ class StatementOutput(BaseModel):
 class State(BaseModel):
     source_transcript: str
 
+    patient_forename: str | None
+    patient_surname: str | None
+    patient_age: str | None
+    patient_gender: str | None
+
     info_clusters: List[InfoCluster] = Field(default_factory=list)
     cluster_coverage: List[bool] = Field(default_factory=list)
     cluster_summ_embeddings: List[List[float]] = Field(default_factory=list)
@@ -70,6 +75,10 @@ cluster_prompt = ChatPromptTemplate.from_messages([
 statement_prompt = ChatPromptTemplate.from_messages([
     ("system", sp_hpi_statement),
     ("user", "{transcript}"),
+    ("user", "{patient_forename}"),
+    ("user", "{patient_surname}"),
+    ("user", "{patient_age}"),
+    ("user", "{patient_gender}"),
     (MessagesPlaceholder(variable_name="repair_text",optional=True))
 ])
 
@@ -111,7 +120,11 @@ def generate_statements(state: State) -> State:
     text = state.source_transcript
 
     result = debug_invoke(statement_agent, {
-        "transcript": state.source_transcript
+        "transcript": state.source_transcript,
+        "patient_forename": state.patient_forename,
+        "patient_surname": state.patient_surname,
+        "patient_gender": state.patient_gender,
+        "patient_age": state.patient_age,
     }, "statement_agent")
 
     return state.model_copy(update={"statements": result.statements})
@@ -199,7 +212,6 @@ def validate_justification(state: State) -> State:
 
     return state.model_copy(update={"validation_status": validations})
 
-# TODO
 def repair_coverage(state: State) -> State:
     message = ""
     for section in state.statements:
@@ -222,7 +234,12 @@ def repair_statements(state: State) -> State:
     logger(curr_summ)
 
     result = debug_invoke(repair_agent,
-                          {"transcript":state.source_transcript,"curr_summary":curr_summ},
+                          {"transcript":state.source_transcript,
+                           "patient_forename": state.patient_forename,
+                           "patient_surname": state.patient_surname,
+                           "patient_gender": state.patient_gender,
+                           "patient_age": state.patient_age,
+                           "curr_summary":curr_summ},
                         "repair_agent"
     )
 
@@ -281,6 +298,23 @@ builder.add_conditional_edges("validate_statements",
 )
 
 hpi_graph = builder.compile()
+
+def generate_hpi(transcript,metadata):
+    logger(metadata)
+    logger(metadata["patient_forename"])
+
+    result = hpi_graph.invoke({
+        "source_transcript": transcript,
+        "patient_forename": metadata["patient_forename"],
+        "patient_surname": metadata["patient_surname"],
+        "patient_age": metadata["patient_age"],
+        "patient_gender": metadata["patient_gender"],
+    })
+
+    final_state = State(**result)
+
+    return format_output(final_state)
+
 
 if __name__ == '__main__':
     corpus = Corpus.load("ms_cnvsc_acibench_test_mini.corpus")

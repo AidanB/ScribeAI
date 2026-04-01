@@ -5,6 +5,9 @@ import re
 from glob import glob
 from collections import defaultdict
 
+import config
+
+
 class FileManager:
     def __init__(self,target_directory):
         self.RE_DOC_ID = re.compile(r"doc(\d\d\d)")
@@ -38,11 +41,14 @@ class FileManager:
         else:
             return False
 
-    def _generate_filepath(self,version,doc_id):
-        return os.path.join(self.target_directory,f"{version}",f"doc{doc_id:03d}.json")
+    def _generate_filepath(self,version,doc_id,filetype):
+        filetype = "."+filetype if not filetype.startswith(".") else filetype
+        filetype = filetype.lower()
+
+        return os.path.join(self.target_directory,f"{version}",f"doc{doc_id:03d}{filetype}")
 
     def save_note_data(self,version,doc_id,note_obj):
-        filepath = self._generate_filepath(version,doc_id)
+        filepath = self._generate_filepath(version,doc_id,".json")
 
         serialized_data = note_obj.serialize_data()
 
@@ -53,7 +59,7 @@ class FileManager:
 
     def load_note_data(self,version,doc_id):
         try:
-            filepath = self._generate_filepath(version,doc_id)
+            filepath = self._generate_filepath(version,doc_id,".json")
             with open(filepath,"r",encoding="utf8") as f:
                 note = json.load(f)
 
@@ -62,8 +68,32 @@ class FileManager:
             print(f"Warning: encountered error {e} when attempting to open file {doc_id}")
             return None
 
+    def output_note(self,version,doc_id,note_text):
+        filepath = self._generate_filepath(version,doc_id,".txt")
+
+        with open(filepath,"w+",encoding="utf8") as f:
+            f.write(note_text)
+
+    def save_query_embeddings(self,version,query_type,embeddings_obj):
+        filepath = os.path.join(config.embeddings_path,version)
+        os.makedirs(filepath,exist_ok=True)
+
+        filename = f"{query_type}.embeddings"
+        filepath = os.path.join(filepath,filename)
+
+        with open(filepath,"wb") as f:
+            pickle.dump(embeddings_obj,f)
+
+    def load_query_embeddngs(self,version,query_type):
+        filepath = os.path.join(config.embeddings_path,version)
+        filename = f"{query_type}.embeddings"
+        filepath = os.path.join(filepath,filename)
+
+        with open(filepath,"rb") as f:
+            return pickle.load(f)
+
     def save_response(self,version,doc_id,response):
-        filepath = self._generate_filepath(version,doc_id)
+        filepath = self._generate_filepath(version,doc_id,".note")
         if not os.path.isdir(os.path.join(self.target_directory,version)):
             os.makedirs(os.path.join(self.target_directory,version))
         with open(filepath,"wb") as f:
@@ -71,7 +101,7 @@ class FileManager:
             pickle.dump(response,f)
 
     def load_response(self,version,doc_id):
-        filepath = self._generate_filepath(version,doc_id)
+        filepath = self._generate_filepath(version,doc_id,".note")
         with open(filepath,"rb") as f:
             response = pickle.load(f)
 

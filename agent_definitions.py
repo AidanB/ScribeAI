@@ -12,7 +12,7 @@ from file_manager import *
 from system_prompts import *
 
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Literal
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,6 +41,9 @@ class HPIOutputSchema(BaseModel):
     items: List[HPICitationSchema] = Field(
         description="List of statement-justification pairs"
     )
+
+class ROSOutputSchema(BaseModel):
+    determination: Literal["endorses","denies","undetermined"]
 
 default_model = init_chat_model("gpt-5-nano",temperature=0.2)
 

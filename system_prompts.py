@@ -1,3 +1,5 @@
+examples_chief_complaint = """Annual exam. Abnormal labs. Follow-up of chronic problems. Joint pain. Back pain. Right middle finger pain. High blood sugar. Shortness of breath. Follow-up from emergency room visit. Follow-up bilateral reduction mammoplasty."""
+
 instr_chief_complaint = """Read through the entire transcript of the conversation. Based on the information obtained from the transcript, identify the chief complaint or complaints that motivated the visit.
 Note that the doctor and patient may discuss additional points of concern, for instance as follows ups to previous visits. For identifying the chief complaint, focus solely on the core problem or problems which the patient endorses as the motivating cause for the visit. 
 Your summary of the complaint should be as concise as possible while accurately representing the patient's concerns. 
@@ -73,6 +75,7 @@ Your summary should begin with a demographic overview of the patient and a simpl
 Your summary should then include one paragraph for each concern or condition discussed during the encounter. Include all information that is new or continuing in this encounter.
 Include any symptoms discussed during the encounter. List symptoms as "endorses" or "denies" depending on patient's answer. 
 Your summary should remain professional and should use clinical language throughout.
+Your summary should be written from the perspective of the physician in impersonal first-person, e.g. "suggested psychotherapy", not "I suggested psychotherapy" or "physician suggested psychotherapy"
 For each paragraph, you should identify at least one excerpt from the text to support each statement you make.
 Your output may include multiple excerpts from the transcript if applicable; order excerpts in order of decreasing relevance.
 Output your citations as (start,end) indices. Begin counting characters at 0 from the beginning of the transcript.
@@ -120,6 +123,9 @@ The speaker will be indicated at the start of every line with a speaker ID tag, 
 The text has been tokenized, each token is separated by white space, and the entire transcript has been converted to lower case.
 
 {instr_chief_complaint}
+
+The following is a non-exhaustive list of chief complaints taken from different clinical notes. Use these examples as a reference of style, but bear in mind that they do not cover the full spectrum of possible conditions.
+{examples_chief_complaint}
  """
 
 sp_arb_chief_complaint = f"""You are a clinical document reviewer assisting in the creation of a physician's note documenting a doctor-patient interaction.

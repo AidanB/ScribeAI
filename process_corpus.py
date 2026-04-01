@@ -28,16 +28,26 @@ class Doc():
 
         self.build_ngrams()
 
+        self.calculate_embeddings(patient_only=True)
+
+    def safe_get(self,data,key):
+        try:
+            return data[key][0]
+        except KeyError:
+            return None
+
     # not called on init because of data availability timing, must be called after Doc init to access doc.encounter_id
     def get_metadata(self,metadata_row):
-        self.patient_forename = metadata_row["patient_firstname"]
-        self.patient_surname = metadata_row["patient_familyname"]
-        self.patient_gender = metadata_row["patient_gender"]
-        self.patient_age = metadata_row["patient_age"]
-        self.doctor_name = metadata_row["doctor_name"]
+        self.patient_forename = self.safe_get(metadata_row,"patient_firstname")
+        self.patient_surname = self.safe_get(metadata_row,"patient_surname")
+        self.patient_gender = self.safe_get(metadata_row,"patient_gender")
+        self.patient_age = self.safe_get(metadata_row,"patient_age")
+        self.doctor_name = self.safe_get(metadata_row,"doctor_name")
 
-    def calculate_embeddings(self):
+    def calculate_embeddings(self,patient_only=False):
         dialogue_turns = []
+        doctor_turns = []
+        patient_turns = []
         for line in self.dialogue.splitlines():
             try:
                 speaker,turn = line.split("] ", maxsplit=1)
@@ -47,7 +57,6 @@ class Doc():
 
             dialogue_turns.append(line.strip())
 
-            """
             speaker = speaker.strip("[")
             match speaker:
                 case "doctor":
@@ -56,10 +65,25 @@ class Doc():
                     patient_turns.append(line)
                 case _:
                     pass
-            """
-        self.vector_store = InMemoryVectorStore(embedding=embeddings_model)
-        self.vector_store.add_texts(dialogue_turns,ids=[f"id{i}" for i in range(len(dialogue_turns))])
 
+        turns = []
+        embeddings = []
+        vector_store = InMemoryVectorStore(embeddings_model)
+        if patient_only:
+            for turn in patient_turns:
+                turns.append(turn)
+                embeddings.append(embeddings_model.embed_query(turn))
+                #vector_store.add_texts(patient_turns)
+        else:
+            for turn in dialogue_turns:
+                turns.append(turn)
+                embeddings.append(embeddings_model.embed_query(turn))
+                #vector_store.add_texts(dialogue_turns)
+
+        self.turns = turns
+        self.embeddings = embeddings
+
+        vector_store.dump()
 
     def build_ngrams(self):
         for line in self.dialogue.splitlines():
@@ -121,13 +145,10 @@ class Corpus():
 
 if __name__ == '__main__':
     data_subdirec = "microsoft-clinical_visit_note_summarization_corpus/aci-bench/challenge_data/"
-    #df_train = pandas.read_csv(os.path.join(data_subdirec,"train.csv"),os.path.join(data_subdirec,"train_metadata.csv"))
-    #df_test = pandas.read_csv(os.path.join(data_subdirec,"clinicalnlp_taskB_test1.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
-    #df_test_mini = df_test[:5]
 
-    training_corpus = Corpus(os.path.join(data_subdirec,"train.csv"),os.path.join(data_subdirec,"train_metadata.csv"))
+    #training_corpus = Corpus(os.path.join(data_subdirec,"train.csv"),os.path.join(data_subdirec,"train_metadata.csv"))
     #test_corpus = Corpus(os.path.join(data_subdirec,"clinicalnlp_taskB_test1.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
     mini_test_corpus = Corpus(os.path.join(data_subdirec,"clinicalnlp_taskB_test1_mini.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
 
-    training_corpus.save("ms_cnvsc_acibench_train.corpus")
+    #training_corpus.save("ms_cnvsc_acibench_train.corpus")
     mini_test_corpus.save("ms_cnvsc_acibench_test_mini.corpus")
