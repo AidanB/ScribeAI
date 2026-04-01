@@ -30,19 +30,13 @@ class Doc():
 
         self.calculate_embeddings(patient_only=True)
 
-    def safe_get(self,data,key):
-        try:
-            return data[key][0]
-        except KeyError:
-            return None
-
     # not called on init because of data availability timing, must be called after Doc init to access doc.encounter_id
     def get_metadata(self,metadata_row):
-        self.patient_forename = self.safe_get(metadata_row,"patient_firstname")
-        self.patient_surname = self.safe_get(metadata_row,"patient_surname")
-        self.patient_gender = self.safe_get(metadata_row,"patient_gender")
-        self.patient_age = self.safe_get(metadata_row,"patient_age")
-        self.doctor_name = self.safe_get(metadata_row,"doctor_name")
+        self.patient_forename = metadata_row["patient_firstname"].item()
+        self.patient_surname = metadata_row["patient_familyname"].item()
+        self.patient_gender = metadata_row["patient_gender"].item()
+        self.patient_age = metadata_row["patient_age"].item()
+        self.doctor_name = metadata_row["doctor_name"].item()
 
     def calculate_embeddings(self,patient_only=False):
         dialogue_turns = []
@@ -82,8 +76,6 @@ class Doc():
 
         self.turns = turns
         self.embeddings = embeddings
-
-        vector_store.dump()
 
     def build_ngrams(self):
         for line in self.dialogue.splitlines():
