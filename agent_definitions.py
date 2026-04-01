@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from langchain.agents.structured_output import ResponseFormat
 from langchain.chat_models import init_chat_model
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 
@@ -43,7 +44,7 @@ class HPIOutputSchema(BaseModel):
     )
 
 class ROSOutputSchema(BaseModel):
-    determination: Literal["endorses","denies","undetermined"]
+    conclusion: Literal["endorses","denies","undetermined"]
 
 default_model = init_chat_model("gpt-5-nano",temperature=0.2)
 
@@ -69,7 +70,18 @@ chief_complaint_arbitrator = create_agent(
     response_format = ChiefComplaintArb_ResponseFormat
 )
 
+llm = llm = init_chat_model(
+    model="gpt-5-nano",
+    temperature=0.2
+)
 
+ros_validation_prompt = ChatPromptTemplate.from_messages([
+    ("system", sp_ros_validation),
+    ("user", "{inputs}")
+])
+
+ros_validation_model = llm.with_structured_output(ROSOutputSchema)
+ros_validation_agent = ros_validation_prompt | ros_validation_model
 
 if __name__ == '__main__':
 
