@@ -7,6 +7,7 @@ from process_corpus import Corpus, Doc, embeddings_model
 from file_manager import FileManager
 from agent_definitions import *
 from utils import *
+from hpi_graph import generate_hpi
 
 
 class Note():
@@ -83,11 +84,11 @@ class Note():
     def format_note(self):
         output_note = f"""CHIEF COMPLAINT
         
-        {self.chief_complaint}
+        {self.chief_complaint.strip()}
         
         HISTORY OF PRESENT ILLNESS
         
-        {self.hpi}
+        {self.hpi.strip()}
         
         REVIEW OF SYSTEMS
         
@@ -99,6 +100,8 @@ class Note():
         
         ASSESSMENT AND PLAN
         """
+
+        return output_note
 
     def get_metadata_context(self):
         return {"patient_forename":self.doc.patient_forename,
@@ -157,60 +160,22 @@ class Note():
 
     def get_hpi(self):
         if self.handle_force_update(self.version,"hpi"):
-            if type(self.hpi) == dict:
-                self.process_hpi()
-                return
-            elif type(self.hpi) == str:
-                return
+            return
 
         self.log("Processing information for HISTORY OF PATIENT ILLNESS")
 
-        invocation = {
-            "messages": [{"role": "user", "content": self.doc.dialogue}],
-            "context": asdict(DemographicsContext(**self.get_metadata_context()))
-        }
+        self.hpi = generate_hpi(self.doc.dialogue,self.get_metadata_context())
 
-        result = hpi_agent.invoke(invocation)
+    def get_ros(self):
+        if self.handle_force_update(self.version,"ros"):
+            return
 
-        output = result["structured_response"].model_dump()
-        self.hpi = output
-        self.log(self.hpi)
-
-    def process_hpi(self):
-        sections = self.hpi["items"]
-
-        approved_sections = []
-        needs_revision = []
-
-        for section in sections:
-            statement = section["statement"]
-            justification = section["justification"]
-
-            self.log(f"Evaluating justifications for statement:\n{statement}")
-
-            if "metadata" in justification:
-                approved_sections.append(section)
-                self.log(f"Approved demographics section.")
-                continue
-
-            statement_vector = embeddings_model.embed_query(statement)
-            just_vectors = embeddings_model.embed_documents(justification)
-
-            highest_score = 0
-            self.log("Similarity scores... ",end="")
-
-            for just in just_vectors:
-                similarity = cosine(just,statement_vector)
-                self.log(similarity,end=" ")
-                if similarity > highest_score:
-                    highest_score = similarity
-
-            if highest_score > self.min_sim:
-                approved_sections.append(section)
-                self.log("\nApproved section.")
-            else:
-                self.log("\nInsufficient justification. Sending for rework.")
-                needs_revision.append(section)
+        self.log("Processing information for REVIEW OF SYSTEMS")
 
 
 
+    def generate_note(self):
+        self.get_chief_complaint()
+        self.get_hpi()
+
+        return self.format_note()
