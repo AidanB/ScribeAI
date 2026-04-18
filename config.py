@@ -3,11 +3,12 @@ import re
 RE_METADATA = re.compile(r"\(?(M|m)etadata[:;]?\)?")
 target_path = "./test-set_responses/"
 embeddings_path = "./embeddings/"
-global_version = "v1"
+global_version = "v3"
 
 similarity_threshold = 0.6
 
-model = "gpt-5-nano"
+#model = "gpt-5-nano"
+model = "gpt-5.4"
 
 symptoms_by_system = {
     "Constitutional":["chills","fatigue","fever","weight gain","weight loss"],
@@ -24,19 +25,3 @@ symptoms_by_system = {
     "Hematologic": ["easily bleeds", "easily bruises", "lymphedema", "issues with blood clots"],
     "Immunologic": ["food allergies", "seasonal allergies"]
 }
-
-import math
-
-
-def cosine_similarity(vec1, vec2):
-    if len(vec1) != len(vec2):
-        raise ValueError("Vectors must be of the same length")
-
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    magnitude1 = math.sqrt(sum(a ** 2 for a in vec1))
-    magnitude2 = math.sqrt(sum(b ** 2 for b in vec2))
-
-    if magnitude1 == 0 or magnitude2 == 0:
-        return 0.0  # Return 0 for zero vectors to avoid division by zero
-
-    return dot_product / (magnitude1 * magnitude2)

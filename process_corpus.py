@@ -3,14 +3,33 @@ import pickle
 import re
 import os
 
-from langchain_core.vectorstores import InMemoryVectorStore
-from nltk.tokenize import word_tokenize
 from collections import Counter
 
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
 
 from dotenv import load_dotenv
+
+
+"""
+Data processing/collecting class for corpus source files.
+Data used for these experiments was the Microsoft clinical visit note summarization corpus
+https://github.com/microsoft/clinical_visit_note_summarization_corpus
+Input data is stored in CSV files, with organization
+dataset,encounter_id,dialogue,note
+
+Evaluations performed on clinicalnlp_taskB_test1
+
+__init__: filepath to source data CSV, filepath to metadata CSV
+
+Collects objects of subclass Doc, which store source information (and derived information) for each document in the data source (i.e. each row in source CSV)
+
+Loads metadata from accompanying metadata CSV based on encounter_ID values. 
+
+Corpus class pre-computes embeddings for all loaded data. This is to streamline iterations during development of RAG modules.
+Corpus class collates n-grams (sentence level, <=3-gram). Functionality leveraging these n-grams is not yet implemented.
+
+Implements its own save() and load() methods as wrappers of pickle
+"""
 
 load_dotenv()
 
@@ -28,7 +47,7 @@ class Doc():
 
         self.build_ngrams()
 
-        self.calculate_embeddings(patient_only=True)
+        self.calculate_embeddings(embedding_type="paired")
 
     # not called on init because of data availability timing, must be called after Doc init to access doc.encounter_id
     def get_metadata(self,metadata_row):
@@ -38,10 +57,11 @@ class Doc():
         self.patient_age = metadata_row["patient_age"].item()
         self.doctor_name = metadata_row["doctor_name"].item()
 
-    def calculate_embeddings(self,patient_only=False):
+    def calculate_embeddings(self,embedding_type="all"):
         dialogue_turns = []
         doctor_turns = []
         patient_turns = []
+        paired_turns = []
         for line in self.dialogue.splitlines():
             try:
                 speaker,turn = line.split("] ", maxsplit=1)
@@ -49,9 +69,9 @@ class Doc():
                 speaker = "unknown"
                 turn = line
 
-            dialogue_turns.append(line.strip())
-
             speaker = speaker.strip("[")
+            dialogue_turns.append((speaker,line.strip()))
+
             match speaker:
                 case "doctor":
                     doctor_turns.append(line)
@@ -60,19 +80,28 @@ class Doc():
                 case _:
                     pass
 
+        for i,turn in enumerate(dialogue_turns):
+            try:
+                if turn[0] == "patient":
+                    paired_turns.append(f"{dialogue_turns[i-1][1]} {dialogue_turns[i][1]}")
+                    #print(f"{dialogue_turns[i-1][1]} {dialogue_turns[i][1]}")
+            except IndexError:
+                paired_turns.append(turn[1])
+
         turns = []
         embeddings = []
-        vector_store = InMemoryVectorStore(embeddings_model)
-        if patient_only:
+        if embedding_type == "patient_only":
             for turn in patient_turns:
                 turns.append(turn)
                 embeddings.append(embeddings_model.embed_query(turn))
-                #vector_store.add_texts(patient_turns)
-        else:
+        elif embedding_type == "all":
             for turn in dialogue_turns:
                 turns.append(turn)
                 embeddings.append(embeddings_model.embed_query(turn))
-                #vector_store.add_texts(dialogue_turns)
+        elif embedding_type == "paired":
+            for turn in paired_turns:
+                turns.append(turn)
+                embeddings.append(embeddings_model.embed_query(turn))
 
         self.turns = turns
         self.embeddings = embeddings
@@ -139,8 +168,9 @@ if __name__ == '__main__':
     data_subdirec = "microsoft-clinical_visit_note_summarization_corpus/aci-bench/challenge_data/"
 
     #training_corpus = Corpus(os.path.join(data_subdirec,"train.csv"),os.path.join(data_subdirec,"train_metadata.csv"))
-    #test_corpus = Corpus(os.path.join(data_subdirec,"clinicalnlp_taskB_test1.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
-    mini_test_corpus = Corpus(os.path.join(data_subdirec,"clinicalnlp_taskB_test1_mini.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
+    test_corpus = Corpus(os.path.join(data_subdirec,"clinicalnlp_taskB_test1.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
+    #mini_test_corpus = Corpus(os.path.join(data_subdirec,"clinicalnlp_taskB_test1_mini.csv"),os.path.join(data_subdirec,"clinicalnlp_taskB_test1_metadata.csv"))
 
     #training_corpus.save("ms_cnvsc_acibench_train.corpus")
-    mini_test_corpus.save("ms_cnvsc_acibench_test_mini.corpus")
+    test_corpus.save("ms_cnvsc_acibench_test.corpus")
+    #mini_test_corpus.save("ms_cnvsc_acibench_test_mini.corpus")

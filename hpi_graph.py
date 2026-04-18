@@ -26,7 +26,7 @@ coverage_iter = 0
 repair_iter = 0
 
 llm = init_chat_model(
-    model="gpt-5-nano",
+    model=config.model,
     temperature=0.2
 )
 
