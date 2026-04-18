@@ -46,7 +46,7 @@ class HPIOutputSchema(BaseModel):
 class ROSOutputSchema(BaseModel):
     conclusion: Literal["endorses","denies","undetermined"]
 
-default_model = init_chat_model("gpt-5-nano",temperature=0.2)
+default_model = init_chat_model(config.model,temperature=0.2)
 
 hpi_agent = create_agent(
     model=default_model,
@@ -71,7 +71,7 @@ chief_complaint_arbitrator = create_agent(
 )
 
 llm = llm = init_chat_model(
-    model="gpt-5-nano",
+    model=config.model,
     temperature=0.2
 )
 

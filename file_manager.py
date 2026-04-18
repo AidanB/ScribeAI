@@ -7,6 +7,11 @@ from collections import defaultdict
 
 import config
 
+"""
+Class handles file save/load operations for various other classes (notably Note), in addition to final output of generated clinical notes.
+
+__init__: parent directory for outputs
+"""
 
 class FileManager:
     def __init__(self,target_directory):
