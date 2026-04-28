@@ -1,6 +1,8 @@
 # ScribeAI
 AI experiments for automatic generation of physician's notes.
 
+All code and architecture human designed and written, except where otherwise noted by code comments. As this project is meant as a demonstration of ability, no LLMs were used for the coding of any primary functions and no AI was consulted for architectural or project design.
+
 Experiments are run on Microsoft's [clinical visit note summarization corpus](https://github.com/microsoft/clinical_visit_note_summarization_corpus).
 
 These experiments are meant to showcase a range of AI based techniques for information retrieval, summarization, and self-validation. Among the approaches showcased in this repository are:
