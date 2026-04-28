@@ -1,6 +1,7 @@
 import re
 
 RE_METADATA = re.compile(r"\(?(M|m)etadata[:;]?\)?")
+RE_NUMBER_RANGE = re.compile(r"(\d+)(-(\d+))?")
 target_path = "./test-set_responses/"
 embeddings_path = "./embeddings/"
 global_version = "v3"
